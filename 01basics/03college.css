@@ -1,0 +1,69 @@
+ table{
+     background-color: rgba(227, 224, 216, 0.767) ;
+     border:2px solid rgb(21, 19, 19);
+     padding: 15px ;
+     text-align: center;
+ }
+
+ th,td{
+     border: 1.5px solid #07eb35;
+     padding:20px;
+     text-align: center;
+ }
+  
+
+ 
+ 
+ div{
+     padding: 100;
+     border:1px#dfdb05
+ }
+ 
+.os {
+    
+    background-color: #ff7c9f;
+}
+.dsa {
+    
+     background-color: #ffb3c7;
+}
+.oops {
+    
+     background-color: #b8b8b8;
+}
+.dbms {
+     
+     background-color: #d6e6ff;
+}
+.wt {
+     
+     background-color: #d7f9f8;
+}
+
+.oopslab {
+     
+     background-color: #ffffea;
+}
+
+.dsalab {
+    
+     background-color: #fff0d4;
+
+}
+
+.wtlab {
+   
+     background-color: #fbe0e0;
+}
+
+.dbmslab {
+    
+     background-color: #e5d4ef;
+}
+caption{
+    color: rgb(11, 11, 10);
+}
+
+.apti{
+    background-color: #df980a;
+}

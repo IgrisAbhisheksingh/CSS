@@ -1,0 +1,43 @@
+body{
+   background-color: #483D3F;
+   margin:10;
+   padding:0;
+   height:100vh;
+   display: flex;
+   justify-content: center;
+   align-items: center; 
+}
+button{
+    background-color: #058ED9;
+    color: #db670e;
+    padding: 250;
+}
+  .card{
+    background-color: #F4EBD9;
+      
+  }
+
+    form {
+       
+       
+      width: 450px;
+      height: 350px;
+      padding: 20px;
+      border: 3px solid #A39A92;
+    }
+    input {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 10px;
+      background: #77685D;
+    }
+    h2{
+        color:   #2f424b;
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    input{
+        margin-bottom: 15px;
+        padding: 10px;
+    }
+    

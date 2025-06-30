@@ -1,0 +1,16 @@
+h1{
+    height: 100px;
+    width:100px;
+    background: #d51e1e;
+    border: 2px solid royalblue;
+    border-radius: 5%;
+}
+h2{
+    background-color: solid black;
+    border: 3px solid #f4d510;
+    padding-left: 50px;
+    padding:50px 2px 1px 50px;
+
+    height: 100px;
+    width: 100px;
+}

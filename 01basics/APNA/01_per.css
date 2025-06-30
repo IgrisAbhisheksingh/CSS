@@ -1,0 +1,9 @@
+ div{
+    height: 100px;
+    width: 100px;
+    background-color: rgb(240, 128, 0);
+    border: 3px solid rgb(92, 8, 228);
+    display: inline-block;
+    margin: 2px;
+ }
+  
