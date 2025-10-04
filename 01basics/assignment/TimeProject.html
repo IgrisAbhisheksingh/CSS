@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Smart Timetable Scheduler</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f4f4f4; transition: background 0.3s, color 0.3s; }
+    h2,h3 { margin-top: 0; }
+    .container { display: flex; gap: 20px; }
+    .sidebar { width: 280px; background: #fff; padding: 15px; border-radius: 10px; box-shadow: 0 0 5px rgba(0,0,0,0.1); }
+    .timetable { flex: 1; overflow: auto; background: #fff; padding: 10px; border-radius: 10px; box-shadow: 0 0 5px rgba(0,0,0,0.1); }
+    .grid { display: grid; grid-template-columns: 80px repeat(7, 1fr); }
+    .grid div { border: 1px solid #ddd; padding: 5px; min-height: 40px; position: relative; }
+    .time { background: #f9f9f9; font-size: 12px; }
+    .header { background: #efefef; font-weight: bold; text-align: center; }
+    .task { border-radius: 5px; padding: 3px; font-size: 12px; cursor: grab; color: #fff; margin-bottom: 4px; }
+    .high { background: #dc3545; }   /* red */
+    .medium { background: #ffc107; color:#000; } /* yellow */
+    .low { background: #198754; }    /* green */
+    input, select, button { width: 100%; margin: 5px 0; padding: 6px; border: 1px solid #ccc; border-radius: 5px; }
+    button { cursor: pointer; background: #007bff; color: white; border: none; }
+    button:hover { background: #0056b3; }
+    .dark { background:#222; color:#eee; }
+    .dark .sidebar, .dark .timetable { background:#333; }
+    .dark .header, .dark .time { background:#444; color:#fff; }
+    .slot.now { border: 2px solid red !important; }
+    .task-actions { display: inline-block; margin-left: 5px; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+  <div style="margin-bottom:10px;">
+    <button onclick="toggleDarkMode()">🌙 Toggle Dark</button>
+    <button onclick="exportData()">⬇ Export</button>
+    <input type="file" id="importFile" onchange="importData(event)">
+  </div>
+
+  <div class="container">
+    
+    <div class="sidebar">
+      <h2>Add Task</h2>
+      <input id="title" type="text" placeholder="Task Title">
+      <input id="duration" type="number" placeholder="Duration (minutes)" value="60">
+      <select id="priority">
+        <option value="high">High</option>
+        <option value="medium" selected>Medium</option>
+        <option value="low">Low</option>
+      </select>
+      <select id="repeat">
+        <option value="none">One-time</option>
+        <option value="daily">Daily</option>
+        <option value="weekly">Weekly</option>
+      </select>
+      <select id="preferredDay">
+        <option value="any">Any Day</option>
+        <option value="0">Mon</option>
+        <option value="1">Tue</option>
+        <option value="2">Wed</option>
+        <option value="3">Thu</option>
+        <option value="4">Fri</option>
+        <option value="5">Sat</option>
+         
+      </select> 
+      <label>Preferred Start</label>
+      <input id="preferredStart" type="time">
+      <label>Preferred End</label>
+      <input id="preferredEnd" type="time">
+      <button onclick="addTask()">➕ Add Task</button>
+      <button onclick="autoSchedule()" style="background:#28a745;">⚡ Smart Auto-Schedule</button>
+      <button onclick="clearTimetable()" style="background:#6c757d;">🗑 Clear</button>
+      <h3>Tasks</h3>
+      <input type="text" id="search" placeholder="Search tasks..." oninput="filterTasks()">
+      <div id="taskList"></div>
+    </div>
+
+    <!-- Timetable -->
+    <div class="timetable">
+      <div class="grid" id="grid"></div>
+    </div>
+  </div>
+
+  <script>
+    const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+    const startHour = 8, endHour = 20, slotMinutes = 60;
+    const slotsPerDay = (endHour - startHour) * 60 / slotMinutes;
+
+    let tasks = JSON.parse(localStorage.getItem("sts_tasks")||"[]");
+
+    const gridEl = document.getElementById("grid");
+    const taskListEl = document.getElementById("taskList");
+
+    // --- Grid Builder ---
+    function buildGrid() {
+      gridEl.innerHTML = "<div></div>" + DAYS.map(d=>`<div class='header'>${d}</div>`).join("");
+      for (let s=0;s<slotsPerDay;s++) {
+        const time = formatTime(s);
+        gridEl.innerHTML += `<div class='time'>${time}</div>`;
+        for (let d=0;d<7;d++) {
+          gridEl.innerHTML += `<div class='slot' data-day='${d}' data-slot='${s}'></div>`;
+        }
+      }
+    }
+
+    function formatTime(slotIndex) {
+      const totalMinutes = startHour*60 + slotIndex*slotMinutes;
+      const hh = String(Math.floor(totalMinutes/60)).padStart(2,"0");
+      const mm = String(totalMinutes%60).padStart(2,"0");
+      return `${hh}:${mm}`;
+    }
+
+    function addTask() {
+      const title = document.getElementById("title").value.trim();
+      const duration = +document.getElementById("duration").value;
+      const priority = document.getElementById("priority").value;
+      const repeat = document.getElementById("repeat").value;
+      const preferredDay = document.getElementById("preferredDay").value;
+      const preferredStart = document.getElementById("preferredStart").value;
+      const preferredEnd = document.getElementById("preferredEnd").value;
+
+      if (!title || duration<=0) return alert("Enter valid task & duration");
+      const id = "t"+Date.now();
+      tasks.push({id,title,duration,priority,repeat,preferredDay,preferredStart,preferredEnd,placed:null});
+      saveTasks();
+      renderTasks();
+    }
+
+    function renderTasks() {
+      taskListEl.innerHTML = "";
+      tasks.forEach(t=>{
+        const div = document.createElement("div");
+        div.className = `task ${t.priority}`;
+        div.draggable = true;
+        div.textContent = `${t.title} (${t.duration}m)`;
+        div.dataset.id = t.id;
+
+        // delete
+        const delBtn = document.createElement("span");
+        delBtn.textContent = "❌";
+        delBtn.className = "task-actions";
+        delBtn.onclick = ()=>deleteTask(t.id);
+
+        div.appendChild(delBtn);
+
+        div.addEventListener("dragstart",e=>{
+          e.dataTransfer.setData("text/plain",t.id);
+        });
+        taskListEl.appendChild(div);
+      });
+    }
+
+    function deleteTask(id) {
+      tasks = tasks.filter(t=>t.id!==id);
+      saveTasks();
+      renderTasks();
+      clearTimetable();
+      tasks.forEach(t=>{ if(t.placed) placeTask(t,t.placed.day,t.placed.slot); });
+    }
+
+    
+    gridEl.addEventListener("dragover",e=>e.preventDefault());
+    gridEl.addEventListener("drop",e=>{
+      e.preventDefault();
+      const id = e.dataTransfer.getData("text/plain");
+      const task = tasks.find(t=>t.id===id);
+      const slotDiv = e.target.closest(".slot");
+      if (!slotDiv) return;
+      placeTask(task,+slotDiv.dataset.day,+slotDiv.dataset.slot);
+    });
+
+    function placeTask(task,day,slot) {
+      const needed = Math.ceil(task.duration/slotMinutes);
+      if (slot+needed > slotsPerDay) return;
+      for (let i=0;i<needed;i++) {
+        const cell = gridEl.querySelector(`.slot[data-day='${day}'][data-slot='${slot+i}']`);
+        if (cell.children.length) return; // conflict
+      }
+       
+      document.querySelectorAll(".slot").forEach(c=>{
+        if (c.firstChild && c.firstChild.dataset.id===task.id) c.innerHTML="";
+      });
+      const cell = gridEl.querySelector(`.slot[data-day='${day}'][data-slot='${slot}']`);
+      const el = document.createElement("div");
+      el.className = `task ${task.priority}`;
+      el.textContent = `${task.title} (${formatTime(slot)}-${formatTime(slot+needed)})`;
+      el.dataset.id = task.id;
+      cell.appendChild(el);
+      task.placed = {day,slot,needed};
+      saveTasks();
+    }
+
+    function autoSchedule() {
+      clearTimetable();
+      const priorityOrder = {high:3, medium:2, low:1};
+      const sorted = [...tasks].sort((a,b)=>priorityOrder[b.priority]-priorityOrder[a.priority]);
+      for (const task of sorted) {
+        let placed=false;
+        let daysToTry = [];
+        if(task.repeat==="daily") daysToTry=[0,1,2,3,4,5,6];
+        else if(task.repeat==="weekly" && task.preferredDay!=="any") daysToTry=[Number(task.preferredDay)];
+        else daysToTry = task.preferredDay!=="any"? [Number(task.preferredDay)] : [0,1,2,3,4,5,6];
+
+        for (const d of daysToTry) {
+          const startSlot = task.preferredStart? timeToSlot(task.preferredStart) : 0;
+          const endSlot = task.preferredEnd? timeToSlot(task.preferredEnd) : slotsPerDay-1;
+          for (let s=startSlot;s+Math.ceil(task.duration/slotMinutes)<=endSlot+1;s++) {
+            if (tryFit(task,d,s)) { placeTask(task,d,s); placed=true; break; }
+          }
+          if (placed && task.repeat!=="daily") break;
+        }
+      
+        if (!placed) {
+          for (let d=0;d<7 && !placed;d++) {
+            for (let s=0;s<slotsPerDay;s++) {
+              if (tryFit(task,d,s)) { placeTask(task,d,s); placed=true; break; }
+            }
+          }
+        }
+      }
+    }
+
+    function tryFit(task,day,slot) {
+      const needed = Math.ceil(task.duration/slotMinutes);
+      if (slot+needed > slotsPerDay) return false;
+      for (let i=0;i<needed;i++) {
+        const cell = gridEl.querySelector(`.slot[data-day='${day}'][data-slot='${slot+i}']`);
+        if (cell.children.length) return false;
+      }
+      return true;
+    }
+
+    function clearTimetable() {
+      document.querySelectorAll(".slot").forEach(c=>c.innerHTML="");
+      tasks.forEach(t=>t.placed=null);
+      saveTasks();
+    }
+
+    function saveTasks() {
+      localStorage.setItem("sts_tasks",JSON.stringify(tasks));
+    }
+
+    function timeToSlot(t) {
+      const [hh,mm] = t.split(":").map(Number);
+      return Math.floor(((hh*60+mm) - startHour*60)/slotMinutes);
+    }
+
+    function highlightNow() {
+      document.querySelectorAll(".slot").forEach(c=>c.classList.remove("now"));
+      const now = new Date();
+      let day = (now.getDay()+6)%7;  
+      let slot = timeToSlot(`${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`);
+      const cell = gridEl.querySelector(`.slot[data-day='${day}'][data-slot='${slot}']`);
+      if (cell) cell.classList.add("now");
+    }
+    setInterval(highlightNow, 60000);
+
+    function toggleDarkMode() {
+      document.body.classList.toggle("dark");
+    }
+
+    function exportData() {
+      const blob = new Blob([JSON.stringify(tasks)], {type: "application/json"});
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "timetable.json";
+      a.click();
+    }
+
+    function importData(event) {
+      const file = event.target.files[0];
+      const reader = new FileReader();
+      reader.onload = () => {
+        tasks = JSON.parse(reader.result);
+        saveTasks();
+        renderTasks();
+        clearTimetable();
+        tasks.forEach(t=>{ if(t.placed) placeTask(t,t.placed.day,t.placed.slot); });
+      };
+      reader.readAsText(file);
+    }
+
+    function filterTasks() {
+      const q = document.getElementById("search").value.toLowerCase();
+      document.querySelectorAll("#taskList .task").forEach(el=>{
+        el.style.display = el.textContent.toLowerCase().includes(q) ? "block" : "none";
+      });
+    }
+
+ 
+    buildGrid();
+    renderTasks();
+    tasks.forEach(t=>{ if(t.placed) placeTask(t,t.placed.day,t.placed.slot); });
+    highlightNow();
+  </script>
+
+</body>
+</html>
